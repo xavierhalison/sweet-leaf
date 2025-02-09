@@ -1,7 +1,15 @@
 #include <ESP8266WiFi.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
+
+#include <uri/UriBraces.h>
+#include <uri/UriRegex.h>
+
 #include "OutputDevice.h"
+
+ESP8266WebServer server(80);
 
 // Configurações de Wi-Fi
 const char* ssid = "Ginasio Fantasma";
@@ -11,24 +19,7 @@ const char* password = "Bulbassauro1";
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", -3 * 3600, 60000); // Fuso horário -3 (Brasília)
 
-void onSensorCheck(int currentIndex) {
-  Serial.println("temperature sensor check");
-}
-
-void onLightToggle(int currentIndex) {
-  bool ledOn = currentIndex % 2 == 0;
-  digitalWrite(D1, ledOn ? HIGH : LOW); 
-}
-
-// Array de intervalos de tempo (em segundos)
-unsigned long sensorInterval[] = {30}; // tempo de atualização do sensor: 30 segundos
-unsigned long lightIntervals[] = {8*60*60, 16*60*60}; // intervalos de acionamento da lâmpada (vegetativo): 8/16 horas;
-
-//unsigned long lightIntervals[] = {12*60*60, 12*60*60}; // intervalos de acionamento da lâmpada (floração) 12/12 horas;
-
-// Cria um dispositivo no pino D1, com os intervalos e o callback
-OutputDevice sensor(sensorInterval, 1, false, onSensorCheck, &timeClient);
-OutputDevice lights(lightIntervals, 2, true, onLightToggle, &timeClient);
+bool lampToggle = false;
 
 void setup() {
     pinMode(D0, OUTPUT);
@@ -43,13 +34,24 @@ void setup() {
         Serial.println("Conectando ao Wi-Fi...");
     }
     Serial.println("Conectado ao Wi-Fi!");
+    Serial.println(WiFi.localIP());
 
     // Inicializa o NTPClient
     timeClient.begin();
     timeClient.update();
+
+    if (MDNS.begin("esp8266")) { Serial.println("MDNS responder started"); }
+
+    server.on(F("/"), []() {
+      server.send(200, "text/plain", "hello from esp8266!");
+      lampToggle = !lampToggle;
+      digitalWrite(D0, lampToggle ? HIGH : LOW);
+    });
+
+    server.begin();
+    Serial.println("HTTP server started");
 }
 
 void loop() {
-    sensor.update();
-    lights.update();
+  server.handleClient();
 }
