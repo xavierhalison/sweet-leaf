@@ -1,6 +1,8 @@
 #include <ESP8266WiFi.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 #include "OutputDevice.h"
 
 // Configurações de Wi-Fi
@@ -11,30 +13,53 @@ const char* password = "Bulbassauro1";
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", -3 * 3600, 60000); // Fuso horário -3 (Brasília)
 
-void onSensorCheck(int currentIndex) {
-  Serial.println("temperature sensor check");
-}
 
-void onLightToggle(int currentIndex) {
-  bool ledOn = currentIndex % 2 == 0;
-  digitalWrite(D1, ledOn ? HIGH : LOW); 
+/**
+ * Pinagem lcd i2c
+ * Vcc = Vin
+ * gnd = gnd
+ * sda = D3
+ * scl = D2
+ * Endereço 0x27
+ * Ajustar o contraste se não estiver visível
+ */
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void onLcdChange(int currentIndex) {
+    lcd.clear();
+  switch(currentIndex) {
+    case 0: 
+      lcd.setCursor(0, 0);
+      lcd.print("  TEMPERATURA:  ");
+      lcd.setCursor(0,1);
+      lcd.print("      xº C      ");
+      break;
+    case 1: 
+      lcd.setCursor(0, 0);
+      lcd.print("    UMIDADE:    ");
+      lcd.setCursor(0,1);
+      lcd.print("       x%       ");
+      break;
+    case 2: 
+      lcd.setCursor(0, 0);
+      lcd.print("   SWEET LEAF   ");
+      lcd.setCursor(0,1);
+      lcd.print("     08:53      ");
+      break;
+  }  
 }
 
 // Array de intervalos de tempo (em segundos)
-unsigned long sensorInterval[] = {30}; // tempo de atualização do sensor: 30 segundos
-unsigned long lightIntervals[] = {8*60*60, 16*60*60}; // intervalos de acionamento da lâmpada (vegetativo): 8/16 horas;
+unsigned long lcdIntervals[] = {10, 10, 10};
 
-//unsigned long lightIntervals[] = {12*60*60, 12*60*60}; // intervalos de acionamento da lâmpada (floração) 12/12 horas;
+OutputDevice lcdDisplay(lcdIntervals, 3, false, onLcdChange, &timeClient);
 
-// Cria um dispositivo no pino D1, com os intervalos e o callback
-OutputDevice sensor(sensorInterval, 1, false, onSensorCheck, &timeClient);
-OutputDevice lights(lightIntervals, 2, true, onLightToggle, &timeClient);
-
-void setup() {
-    pinMode(D0, OUTPUT);
-    pinMode(D1, OUTPUT);
-  
+void setup() {  
     Serial.begin(115200);
+
+    lcd.init();                       // Initialize the LCD
+    lcd.backlight();                  // Turn on the backlight
+    lcd.clear();                      // Clear the LCD screen
 
     // Conecta ao Wi-Fi
     WiFi.begin(ssid, password);
@@ -50,6 +75,5 @@ void setup() {
 }
 
 void loop() {
-    sensor.update();
-    lights.update();
+    lcdDisplay.update();
 }
