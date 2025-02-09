@@ -1,7 +1,14 @@
 #include <ESP8266WiFi.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
 #include "OutputDevice.h"
+
+#define DHTPIN D4
+#define DHTTYPE    DHT22     // DHT 22 (AM2302)
+DHT dht(DHTPIN, DHTTYPE);
 
 // Configurações de Wi-Fi
 const char* ssid = "Ginasio Fantasma";
@@ -12,29 +19,37 @@ WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", -3 * 3600, 60000); // Fuso horário -3 (Brasília)
 
 void onSensorCheck(int currentIndex) {
-  Serial.println("temperature sensor check");
-}
-
-void onLightToggle(int currentIndex) {
-  bool ledOn = currentIndex % 2 == 0;
-  digitalWrite(D1, ledOn ? HIGH : LOW); 
+    // Reading temperature or humidity takes about 250 milliseconds!
+    // Sensor readings may also be up to 2 seconds 'old' (its a very slow sensor)
+    float h = dht.readHumidity();
+    // Read temperature as Celsius (the default)
+    float t = dht.readTemperature();
+    // Read temperature as Fahrenheit (isFahrenheit = true)
+  
+    // Check if any reads failed and exit early (to try again).
+    if (isnan(h) || isnan(t)) {
+      Serial.println(F("Failed to read from DHT sensor!"));
+      digitalWrite(D1, HIGH);
+      return;
+    } else {
+      Serial.println(h);
+      Serial.println(t);
+      Serial.println();
+      return;
+    }
 }
 
 // Array de intervalos de tempo (em segundos)
 unsigned long sensorInterval[] = {30}; // tempo de atualização do sensor: 30 segundos
-unsigned long lightIntervals[] = {8*60*60, 16*60*60}; // intervalos de acionamento da lâmpada (vegetativo): 8/16 horas;
 
-//unsigned long lightIntervals[] = {12*60*60, 12*60*60}; // intervalos de acionamento da lâmpada (floração) 12/12 horas;
-
-// Cria um dispositivo no pino D1, com os intervalos e o callback
 OutputDevice sensor(sensorInterval, 1, false, onSensorCheck, &timeClient);
-OutputDevice lights(lightIntervals, 2, true, onLightToggle, &timeClient);
 
 void setup() {
-    pinMode(D0, OUTPUT);
     pinMode(D1, OUTPUT);
   
     Serial.begin(115200);
+
+    dht.begin();
 
     // Conecta ao Wi-Fi
     WiFi.begin(ssid, password);
@@ -51,5 +66,4 @@ void setup() {
 
 void loop() {
     sensor.update();
-    lights.update();
 }
