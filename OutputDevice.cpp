@@ -22,6 +22,7 @@ unsigned long OutputDevice::getMidnight() {
 
     // return midnightToday + (20 * 3600) + (42 * 60); // 20:40 today
 }
+
 // Atualiza o estado do dispositivo
 void OutputDevice::update() {
     timeClient->update(); // Atualiza o tempo do NTPClient
