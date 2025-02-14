@@ -22,9 +22,9 @@
 const char* apSSID = "Sweet Leaf";
 const char* apPassword = "42002420";
 
+ESP8266WebServer server(80);
 WiFiConfigManager wifiConfigManager(apSSID, apPassword, server);
 
-ESP8266WebServer server(80);
 DHT dht(DHTPIN, DHTTYPE);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", -3 * 3600, 60000); // Fuso horário -3 (Brasília)
