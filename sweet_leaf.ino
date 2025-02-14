@@ -1,11 +1,17 @@
 #include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include "OutputDevice.h"
+#include "WiFiConfigManager.h"
 
-// Configurações de Wi-Fi
-const char* ssid = "Ginasio Fantasma";
-const char* password = "Bulbassauro1";
+// Defina o nome e a senha do Access Point
+const char* apSSID = "Sweet Leaf";
+const char* apPassword = "42002420";
+
+ESP8266WebServer server(80);
+
+WiFiConfigManager wifiConfigManager(apSSID, apPassword, server);
 
 // Configuração do NTPClient
 WiFiUDP ntpUDP;
@@ -21,28 +27,16 @@ void onLightToggle(int currentIndex) {
 }
 
 // Array de intervalos de tempo (em segundos)
-unsigned long sensorInterval[] = {30}; // tempo de atualização do sensor: 30 segundos
-unsigned long lightIntervals[] = {8*60*60, 16*60*60}; // intervalos de acionamento da lâmpada (vegetativo): 8/16 horas;
+unsigned long lightIntervals[] = {10, 1}; // intervalos de acionamento da lâmpada (vegetativo): 8/16 horas;
 
-//unsigned long lightIntervals[] = {12*60*60, 12*60*60}; // intervalos de acionamento da lâmpada (floração) 12/12 horas;
-
-// Cria um dispositivo no pino D1, com os intervalos e o callback
-OutputDevice sensor(sensorInterval, 1, false, onSensorCheck, &timeClient);
-OutputDevice lights(lightIntervals, 2, true, onLightToggle, &timeClient);
+OutputDevice lights(lightIntervals, 2, false , onLightToggle, &timeClient);
 
 void setup() {
-    pinMode(D0, OUTPUT);
     pinMode(D1, OUTPUT);
   
     Serial.begin(115200);
 
-    // Conecta ao Wi-Fi
-    WiFi.begin(ssid, password);
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        Serial.println("Conectando ao Wi-Fi...");
-    }
-    Serial.println("Conectado ao Wi-Fi!");
+    wifiConfigManager.begin();
 
     // Inicializa o NTPClient
     timeClient.begin();
@@ -50,6 +44,10 @@ void setup() {
 }
 
 void loop() {
-    sensor.update();
-    lights.update();
+    wifiConfigManager.handleClient();
+
+    delay(3000);
+  
+   //sensor.update();
+   lights.update();
 }
