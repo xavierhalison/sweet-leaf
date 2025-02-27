@@ -36,8 +36,10 @@ void OutputDevice::update() {
       if(onToggleCallback) {
         onToggleCallback(currentIntervalIndex);
       }
+      
       lastToggleTime = currentTime;
       nextToggleTime = lastToggleTime + intervals[currentIntervalIndex];
+
       currentIntervalIndex++;
       if (currentIntervalIndex >= intervalCount) {
         currentIntervalIndex = 0; // Volta ao início do array de intervalos
