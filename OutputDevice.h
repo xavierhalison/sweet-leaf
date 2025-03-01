@@ -17,6 +17,8 @@ private:
     NTPClient* timeClient; // Ponteiro para o objeto NTPClient;
 
     unsigned long getMidnight();
+    void increaseIntervalIndex();
+    void handleMidnightCicles(unsigned long currentTime);
     
 public:
     // Construtor

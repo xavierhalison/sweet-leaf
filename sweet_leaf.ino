@@ -46,16 +46,32 @@ void onSensorCheck(int currentIndex) {
   float t = dht.readTemperature();
 
   if (isnan(h) || isnan(t)) {
-    Serial.println(F("erro 4201: Falha na leitura do sensor!")); // @todo - Implementar modo tela de erro no lcd
+    _sl.data.sensorStatus = false;
     return;
-  }  else {
+    
+  } else {
     if (t >= 26.0) { 
-      digitalWrite(D5, HIGH); //@todo - Instalar ventilador
+      digitalWrite(D5, LOW); 
+      _sl.data.fan1Status = true;
+      
+    } else {
+      digitalWrite(D5, HIGH); 
+      _sl.data.fan1Status = false;
     }
-    _sl.data.temperature = t;
-    _sl.data.humidity = h;
+    
+    _sl.data.temperature    = t;
+    _sl.data.humidity       = h;
+    _sl.data.sensorStatus   = true;
     return;
   }
+}
+
+void handleLcd(String firstLine, String secondLine) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(firstLine);
+  lcd.setCursor(0,1);
+  lcd.print(secondLine);
 }
 
 /**
@@ -64,35 +80,75 @@ void onSensorCheck(int currentIndex) {
  * @todo implementar modo tela de erro 
  */
 void onLcdChange(int currentIndex) {
-  lcd.clear();
-  switch(currentIndex) {
-    case 0: 
-      lcd.setCursor(0, 0);
-      lcd.print("  TEMPERATURA:   ");
-      lcd.setCursor(0,1);
-      lcd.print("     " + String(_sl.data.temperature) + "C     ");
-      break;
-    case 1: 
-      lcd.setCursor(0, 0);
-      lcd.print("    UMIDADE:    ");
-      lcd.setCursor(0,1);
-      lcd.print("     " + String(_sl.data.humidity) + "%     ");
-      break;
-    case 2: 
-      lcd.setCursor(0, 0);
-      lcd.print("     MODO:      ");
-      lcd.setCursor(0,1);
-      lcd.print("   VEGETATIVO   ");
-      break;
-  }  
+  String sysMode = "";
+  
+  if(String(_sl.data.sysMode) == "vegetative") sysMode    = "MODO VEGETATIVO ";
+  else if (String(_sl.data.sysMode) == "bloom") sysMode   = " MODO FLORACAO  ";
+  else if (_sl.data.sysMode == "debug") sysMode           = "   MODO DEBUG   ";
+  else sysMode                                            = "      ERRO      ";
+
+  String firstLine = "";
+  String secondLine = "";
+
+  if (_sl.data.sysMode != "debug") {
+    switch(currentIndex) {
+      case 0: 
+        updateTime();
+        secondLine = "     " + _sl.data.dateTime + "      ";
+        handleLcd(sysMode, secondLine);
+        break;
+      case 1: 
+        firstLine   = "    UMIDADE:    ";
+        secondLine  = "     " + String(_sl.data.humidity) + "%     ";
+        handleLcd(firstLine, secondLine);
+        break;
+      case 2: 
+        firstLine   = "  TEMPERATURA:   ";
+        secondLine  = "     " + String(_sl.data.temperature) + "C     ";
+        handleLcd(firstLine, secondLine);
+        break;
+    }    
+  } else {
+    switch(currentIndex) {
+      case 0: 
+        updateTime();
+        firstLine   = "Hora       " + _sl.data.dateTime;
+        secondLine  = "Modo       " + _sl.data.sysMode;
+        handleLcd(firstLine, secondLine);
+        break;
+      case 1: 
+        firstLine   = wifiConfigManager.getConnectionStatus()   ? "Internet      ON" : "Internet     OFF";
+        secondLine  = _sl.data.sensorStatus                     ? "Sensor        ON" : "Sensor       OFF";
+        handleLcd(firstLine, secondLine);
+        break;
+      case 2: 
+        firstLine   = _sl.data.fan1Status   ? "Fan 1         ON" : "Fan 1        OFF";
+        secondLine  = _sl.data.fan2Status   ? "Fan 2         ON" : "Fan 2        OFF";
+        handleLcd(firstLine, secondLine);
+        break;
+      case 3: 
+        firstLine   = "Temp       " + String(_sl.data.temperature);
+        secondLine  = "Umid       " + String(_sl.data.humidity);
+        handleLcd(firstLine, secondLine);
+        break;
+      case 4: 
+        firstLine   = _sl.data.lightStatus   ? "Luz           ON" : "Luz          OFF";
+        secondLine  = "   Sweet Leaf   ";
+        handleLcd(firstLine, secondLine);
+        break;        
+    }      
+  }
 }
 
 /**
  * LÂMPADA PRINCIPAL
  */
 void onLightToggle(int currentIndex) {
-  bool ledOn = currentIndex % 2 == 0;
-  digitalWrite(D0, ledOn ? HIGH : LOW); 
+  Serial.println(currentIndex);
+  bool lightOn          = currentIndex % 2 == 0;
+  _sl.data.lightStatus   = lightOn;
+  
+  digitalWrite(D0, lightOn ? HIGH : LOW); 
 }
 
 /**
@@ -100,12 +156,35 @@ void onLightToggle(int currentIndex) {
  * enquanto o sistema não é instalado, apenas acender um led
  */
 void onFan2Toggle(int currentIndex) {
-  bool ledOn = currentIndex % 2 == 0;
-  digitalWrite(D7, ledOn ? HIGH : LOW); 
+  bool fanOn            = currentIndex % 2 == 0;
+  _sl.data.fan2Status   = fanOn;
+  
+  digitalWrite(D7, fanOn ? LOW : HIGH); 
 }
 
 
 ///// INSTANCIAS DO GERENCIADOR DE DISPOSITIVOS ///// 
+
+/**
+ * DISPLAY LCD
+ */
+unsigned long lcdIntervals[]        = {10, 5, 5};
+unsigned long lcdDebugIntervals[]   = {2, 2, 2, 2, 2};
+unsigned long fan1Interval[]        = {30}; 
+unsigned long lightIntervalVeg[]    = {8 * 60 * 60, 16 * 60 * 60};
+unsigned long lightIntervalFlo[]    = {12 * 60 * 60, 12 * 60 * 60};
+unsigned long lightIntervaldebug[]  = {18 * 60 * 60, 6 * 60 * 60};
+unsigned long fan2Interval[]        = {30, 5 * 60}; 
+
+OutputDevice lcdDisplay(lcdIntervals, 3, false, onLcdChange, &timeClient);
+OutputDevice lcdDebugDisplay(lcdDebugIntervals, 5, false, onLcdChange, &timeClient);
+
+/**
+ * VENTILAÇÃO 1
+ * O ventilador será acionado cada vez que o sensor dht ler uma temperatura >= 26°
+ * por meio do callback onSensorCheck
+ */
+OutputDevice fan1(fan1Interval, 1, false, onSensorCheck, &timeClient);
 
 /**
  * LÂMPADA
@@ -113,32 +192,15 @@ void onFan2Toggle(int currentIndex) {
  * startAtMidnight = true, para que os horários da lâmpada sejam humanamente previsíveis
  * x * 60 * 60 = quantidade de segundos em x horas
  */
-unsigned long lightIntervalVeg[] = {8 * 60 * 60, 16 * 60 * 60};
-unsigned long lightIntervalFlo[] = {12 * 60 * 60, 12 * 60 * 60};
-
 OutputDevice lightVeg(lightIntervalVeg, 2, true, onLightToggle, &timeClient);
 OutputDevice lightFlo(lightIntervalFlo, 2, true, onLightToggle, &timeClient);
-
-/**
- * VENTILAÇÃO 1
- * O ventilador será acionado cada vez que o sensor dht ler uma temperatura >= 26°
- * por meio do callback onSensorCheck
- */
-unsigned long fan1Interval[] = {30}; // tempo de atualização do sensor: 30 segundos
-OutputDevice fan1(fan1Interval, 1, false, onSensorCheck, &timeClient);
+OutputDevice lightDebug(lightIntervaldebug, 2, true, onLightToggle, &timeClient);
 
 /**
  * VENTILAÇÃO 2 
  * @todo - implementar modo vegetativo e de floração para esse dispositivo
  */
-unsigned long fan2Interval[] = {60 * 5, 30}; // troca de ar à cada 5 minutos por 30 segundos
 OutputDevice fan2(fan2Interval, 2, false, onFan2Toggle, &timeClient);
-
-/**
- * DISPLAY LCD
- */
-unsigned long lcdIntervals[] = {5, 3, 3};
-OutputDevice lcdDisplay(lcdIntervals, 3, false, onLcdChange, &timeClient);
 
 
 ///// CALLBACKS DO SERVIDOR WEB //////
@@ -203,20 +265,31 @@ void setup() {
     pinMode(D4, OUTPUT);      // DHT
     pinMode(D5, OUTPUT);      // VENTILAÇÃO 1 
     pinMode(D7, OUTPUT);      // VENTILAÇÃO 2
+
+    String starting = "Iniciando.......";
+
+    lcd.init();                       
+    lcd.backlight();                  
+    lcd.clear();   
   
     Serial.begin(115200);
     
+    handleLcd(starting, "WiFi");
     wifiConfigManager.begin();
-    dht.begin();
+    delay(1000);
     
-    lcd.init();                       
-    lcd.backlight();                  
-    lcd.clear();                      
-
+    handleLcd(starting, "Sensor");
+    dht.begin();                   
+    delay(1000);
+  
+    handleLcd(starting, "Servidor NTP");
     timeClient.begin();
     timeClient.update();
+    delay(1000);
 
+    handleLcd(starting, "Servidor HTTP");
     if (MDNS.begin("esp8266")) { Serial.println("MDNS responder started"); }
+    delay(1000);
 
     server.on(F("/data"), HTTP_GET, handleGetData);
 
@@ -232,31 +305,34 @@ void setup() {
 }
 
 void updateTime() {
-  String horaAtual = timeClient.getFormattedTime();
-  String horaMinuto = horaAtual.substring(0, 5);
-  _sl.data.dateTime = horaMinuto;
+  String h = timeClient.getFormattedTime();
+  String hStr = h.substring(0, 5);
+  _sl.data.dateTime = hStr;
 }
 
 void loop() {
   wifiConfigManager.handleClient();
-  timeClient.update();
-  
-  if (wifiConfigManager.getConnectionStatus()) {
-      updateTime();
-      server.handleClient();
-      fan1.update();
-      fan2.update();
-      lcdDisplay.update();
-      
-      if(_sl.data.sysMode == "vegetative") {
-        lightVeg.update(); 
-      } else {
-        lightFlo.update();  
-      }
+
+  if(_sl.data.sysMode == "debug") {
+    lcdDebugDisplay.update();
   } else {
-      lcd.setCursor(0, 0);
-      lcd.print("  SEM CONEXAO   ");
-      lcd.setCursor(0,1);
-      lcd.print("----------------");
+    lcdDisplay.update(); 
+  }
+
+  if(wifiConfigManager.getConnectionStatus()) {
+    server.handleClient();
+    timeClient.update();
+    updateTime();
+    
+    fan1.update();
+    fan2.update();
+
+    if(_sl.data.sysMode == "vegetative") {
+      lightVeg.update(); 
+    } else if (_sl.data.sysMode == "flowering"){
+      lightFlo.update();  
+    } else {
+      lightDebug.update();
+    }
   }
 }
