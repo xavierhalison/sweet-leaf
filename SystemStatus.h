@@ -17,6 +17,7 @@ class SystemStatus {
       bool fan1Status = false;
       bool fan2Status = false;
       bool lightStatus = false;
+      bool updatedTime = false;
     } data;
 
     static SystemStatus& getInstance() {
@@ -34,6 +35,7 @@ class SystemStatus {
       json["fan1Status"] = data.fan1Status;
       json["fan2Status"] = data.fan2Status;
       json["lightStatus"] = data.fan2Status;
+      json["updatedTime"] = data.updatedTime;
 
       String jsonString;
       serializeJson(json, jsonString);

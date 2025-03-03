@@ -1,7 +1,7 @@
 #include "OutputDevice.h"
 
 // Construtor
-OutputDevice::OutputDevice(unsigned long* inter, int count, bool midnight, void (*callback)(int), NTPClient* client) {
+OutputDevice::OutputDevice(unsigned long* inter, int count, bool midnight, void (*callback)(int), TimeManager* client) {
     intervals = inter;
     intervalCount = count;
     currentIntervalIndex = 0;
@@ -29,7 +29,6 @@ void OutputDevice::handleMidnightCicles(unsigned long currentTime) {
     else nextToggleTime += intervals[currentIntervalIndex];
 
     if(onToggleCallback) {
-      Serial.println(nextToggleTime);
       onToggleCallback(currentIntervalIndex);
     }
     
@@ -46,7 +45,7 @@ void OutputDevice::increaseIntervalIndex() {
 
 // Atualiza o estado do dispositivo
 void OutputDevice::update() {
-    timeClient->update(); // Atualiza o tempo do NTPClient
+//    timeClient->update(); // Atualiza o tempo do NTPClient
     unsigned long currentTime = timeClient->getEpochTime(); // Obtém o tempo atual em segundos
   
     if(startAtMidnight) {

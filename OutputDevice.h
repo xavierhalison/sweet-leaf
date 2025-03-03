@@ -2,8 +2,8 @@
 #define OUTPUTDEVICE_H
 
 #include <Arduino.h>
-#include <NTPClient.h>
 #include <WiFiUdp.h>
+#include "TimeManager.h"
 
 class OutputDevice {
 private:
@@ -14,7 +14,7 @@ private:
     unsigned long nextToggleTime;
     bool startAtMidnight;
     void (*onToggleCallback)(int); // Callback para quando o estado muda
-    NTPClient* timeClient; // Ponteiro para o objeto NTPClient;
+    TimeManager* timeClient; // Ponteiro para o objeto NTPClient;
 
     unsigned long getMidnight();
     void increaseIntervalIndex();
@@ -22,7 +22,7 @@ private:
     
 public:
     // Construtor
-    OutputDevice(unsigned long* inter, int count, bool midnight, void (*callback)(int), NTPClient* client);
+    OutputDevice(unsigned long* inter, int count, bool midnight, void (*callback)(int), TimeManager* client);
 
     // Atualiza o estado do dispositivo
     void update();

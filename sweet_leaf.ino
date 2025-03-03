@@ -15,6 +15,7 @@
 #include "OutputDevice.h"
 #include "WiFiConfigManager.h"
 #include "SystemStatus.h"  
+#include "TimeManager.h"
 
 #define DHTPIN D4
 #define DHTTYPE    DHT22     // DHT 22 (AM2302)
@@ -28,12 +29,11 @@ const char* apPassword = "42002420";
 ESP8266WebServer server(80);
 DHT dht(DHTPIN, DHTTYPE);
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -3 * 3600, 60000); // Fuso horário -3 (Brasília)
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 WiFiConfigManager wifiConfigManager(apSSID, apPassword, server);
 SystemStatus& _sl = SystemStatus::getInstance();
-
+TimeManager timeManager;
 
 ////// CALLBACKS DOS DISPOSITIVOS ////// 
 /**
@@ -132,8 +132,8 @@ void onLcdChange(int currentIndex) {
         handleLcd(firstLine, secondLine);
         break;
       case 4: 
-        firstLine   = _sl.data.lightStatus   ? "Luz           ON" : "Luz          OFF";
-        secondLine  = "   Sweet Leaf   ";
+        firstLine   = _sl.data.lightStatus    ? "Luz           ON" : "Luz          OFF";
+        secondLine  = _sl.data.updatedTime    ? "NTP           ON" : "NTP          OFF";
         handleLcd(firstLine, secondLine);
         break;        
     }      
@@ -144,7 +144,6 @@ void onLcdChange(int currentIndex) {
  * LÂMPADA PRINCIPAL
  */
 void onLightToggle(int currentIndex) {
-  Serial.println(currentIndex);
   bool lightOn          = currentIndex % 2 == 0;
   _sl.data.lightStatus   = lightOn;
   
@@ -176,15 +175,15 @@ unsigned long lightIntervalFlo[]    = {12 * 60 * 60, 12 * 60 * 60};
 unsigned long lightIntervaldebug[]  = {18 * 60 * 60, 6 * 60 * 60};
 unsigned long fan2Interval[]        = {30, 5 * 60}; 
 
-OutputDevice lcdDisplay(lcdIntervals, 3, false, onLcdChange, &timeClient);
-OutputDevice lcdDebugDisplay(lcdDebugIntervals, 5, false, onLcdChange, &timeClient);
+OutputDevice lcdDisplay(lcdIntervals, 3, false, onLcdChange, &timeManager);
+OutputDevice lcdDebugDisplay(lcdDebugIntervals, 5, false, onLcdChange, &timeManager);
 
 /**
  * VENTILAÇÃO 1
  * O ventilador será acionado cada vez que o sensor dht ler uma temperatura >= 26°
  * por meio do callback onSensorCheck
  */
-OutputDevice fan1(fan1Interval, 1, false, onSensorCheck, &timeClient);
+OutputDevice fan1(fan1Interval, 1, false, onSensorCheck, &timeManager);
 
 /**
  * LÂMPADA
@@ -192,15 +191,15 @@ OutputDevice fan1(fan1Interval, 1, false, onSensorCheck, &timeClient);
  * startAtMidnight = true, para que os horários da lâmpada sejam humanamente previsíveis
  * x * 60 * 60 = quantidade de segundos em x horas
  */
-OutputDevice lightVeg(lightIntervalVeg, 2, true, onLightToggle, &timeClient);
-OutputDevice lightFlo(lightIntervalFlo, 2, true, onLightToggle, &timeClient);
-OutputDevice lightDebug(lightIntervaldebug, 2, true, onLightToggle, &timeClient);
+OutputDevice lightVeg(lightIntervalVeg, 2, true, onLightToggle, &timeManager);
+OutputDevice lightFlo(lightIntervalFlo, 2, true, onLightToggle, &timeManager);
+OutputDevice lightDebug(lightIntervaldebug, 2, true, onLightToggle, &timeManager);
 
 /**
  * VENTILAÇÃO 2 
  * @todo - implementar modo vegetativo e de floração para esse dispositivo
  */
-OutputDevice fan2(fan2Interval, 2, false, onFan2Toggle, &timeClient);
+OutputDevice fan2(fan2Interval, 2, false, onFan2Toggle, &timeManager);
 
 
 ///// CALLBACKS DO SERVIDOR WEB //////
@@ -283,9 +282,13 @@ void setup() {
     delay(1000);
   
     handleLcd(starting, "Servidor NTP");
-    timeClient.begin();
-    timeClient.update();
+    timeManager.begin();
+    while(!timeManager.isTimeUpdated()) { 
+      timeManager.updateTime();
+    }
     delay(1000);
+    _sl.data.updatedTime = timeManager.isTimeUpdated();
+    
 
     handleLcd(starting, "Servidor HTTP");
     if (MDNS.begin("esp8266")) { Serial.println("MDNS responder started"); }
@@ -305,8 +308,8 @@ void setup() {
 }
 
 void updateTime() {
-  String h = timeClient.getFormattedTime();
-  String hStr = h.substring(0, 5);
+  String h = timeManager.getFormattedTime();
+  String hStr = h.substring(13, 18);
   _sl.data.dateTime = hStr;
 }
 
@@ -321,7 +324,6 @@ void loop() {
 
   if(wifiConfigManager.getConnectionStatus()) {
     server.handleClient();
-    timeClient.update();
     updateTime();
     
     fan1.update();
